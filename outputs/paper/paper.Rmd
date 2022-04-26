@@ -1,0 +1,304 @@
+---
+title: "What factors can affect COVID-19 results?"
+subtitle: "Statistical Analysis on COVID-19 cases in Toronto"
+author: 
+  - Qingya Li
+  
+thanks: "Code and data are available at: LINK."
+date: "`r format(Sys.time(), '%d %B %Y')`"
+abstract: "The paper studied the COVID-19 cases in Toronto. By creating some visualizations and applying binomial regression models, we found outbreak-associated, age, gender,  infection source, classification type, ever hospitalized, ever in ICU, ever intubated are correlated to the recovery/fatality of the COVID-19 cases. It is necessary for us to conduct such research since it can provide a pathway for the prevention of the pandemic. \\par \\textbf {Keywords:} COVID-19, pandemic, Toronto, Toronto Open Data Portal, Canada"
+output:
+  bookdown::pdf_document2
+toc: TRUE
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+library(opendatatoronto)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(knitr) 
+library(tidytext)
+```
+
+# Introduction
+
+The global death toll attributable to COVID-19 has increased since the outbreak, arousing people’s attention. The official data presented over 5.5 million confirmed death cases due to the pandemic, but the actual death tolls were more than the official counts [@news]. In this case, we intended to study whether the COVID-19 fatal/resolved is associated with age, gender, source of infection, outbreak-associated, and other factors. We imported data from the Toronto Open Data Portal website [@dataset]. The data contained information about the Toronto COVID-19 cases between 2020 to 2022.
+
+The paper mainly included four sections :\@ref(data), \@ref(model) , \@ref(results) and \@ref(discussion). \@ref(data) section covered the data cleaning process and removed the unused variables in this paper. We performed some exploratory data analysis (EDA) for the variables with the cleaned dataset. In the \@ref(model) section, we conducted a binomial regression model since we considered the results of the COVID-19 cases linearly correlated to the analyzed variables. We applied COVID-19 results as the response variables (either resolved or fatal), other variables were explanatory variables in the models. Then we ended up with the findings in the \@ref(results) section. Lastly, we discussed the bias and weakness of the dataset in the \@ref(discussion) section. 
+
+We can learn more about COVID-19 through research. The findings can study the factors that may increase the probability of pandemic deaths. Additionally, providing a pathway for preventative and treatment initiatives.
+
+
+# Data
+
+## Data Source
+
+The dataset was published by Toronto Public Health (TPH). The organization is responsible for the public health issue and well-being of over 2.9 million Toronto residents since 1883 [@tph]. TPH has primarily addressed protecting and enhancing the residents' health. There are three principal objectives of TPH: 1) Preventing the disease spread and promoting the public health; 2) Monitoring the population’s health status by applying surveillance, to respond to the ongoing health requirement; 3) Developing and applying public policy to promote the individuals, communities and the whole society' health [@tph].
+
+
+## Methodology and Data Collection
+
+The dataset reported the ongoing and emerging COVID-19 pandemic outbreak in Toronto by TPH [@dataset]. The data was collected from the provincial Case & Contact Management System (CCM) [@dataset]. It included information about the demographic, geographic, and other individuals (age, gender, etc) information for the confirmed COVID-19 cases in Toronto from the first case recorded in January 2020 [@dataset]. The population of the data frame was the residents of the entire Toronto city, and the sample was the infected individuals. In addition, TPH mentioned that some limitations existed. The data we used may not be the latest. For the reason that the entire dataset will be refreshed and updated weekly [@dataset]. The data will be overwritten on the given Tuesday at 8:30 AM and released on Wednesday [@dataset]. The data in the provided dataset keeps updating as the TPH continues to report the new confirmed cases and improve the quality of the initiatives [@dataset]. In our paper, we used the dataset was released on April 13th. Another reason is the data may be different from the dataset reported by other organizations since the dataset was collected from different periods and numerous sources [@dataset]. Our report may come up with different conclusions from others as well. 
+
+
+## Data Characteristics
+
+```{r load data, echo = FALSE, message = FALSE, warning = FALSE}
+#import package
+package <- show_package("64b54586-6180-4485-83eb-81e8fae3b8fe")
+#import all the resources for the package
+resources <- list_package_resources("64b54586-6180-4485-83eb-81e8fae3b8fe")
+#identify the data resources
+datastore_resources <- filter(resources, tolower(format) %in% c('csv', 'geojson'))
+# load the raw dataset
+raw_df <- filter(datastore_resources, row_number()==1) %>% get_resource()
+```
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+#cleaning dataset 
+df <- raw_df %>%
+  select(`Outbreak Associated`, `Age Group`, `Neighbourhood Name`, `Source of Infection`, Classification, `Client Gender`, Outcome, `Ever Hospitalized`, `Ever in ICU`, `Ever Intubated`) %>% 
+  filter(Outcome != "ACTIVE") %>% 
+  filter(`Client Gender` == "FEMALE" | `Client Gender` == "MALE") %>% 
+  mutate(result = as.factor(ifelse(Outcome %in% c("RESOLVED"), 1,0))) %>% 
+  rename(`outbreak associated` = `Outbreak Associated`,
+         age = `Age Group`,
+         neighbourhood = `Neighbourhood Name`,
+         infection = `Source of Infection`,
+         classification = Classification,
+         gender =  `Client Gender`,
+         outcome = Outcome,
+         `ever hospitalized` = `Ever Hospitalized`,
+         `ever in ICU` = `Ever in ICU`,
+         `ever intubated` = `Ever Intubated`) 
+write_csv(df, "df.csv")
+
+```
+
+The dataset is available at Toronto Open Data Portal, which can be accessed by using `opendatatoronto` [@opendatatoronto]. Our report was written using the `R` statistical language [@citer] and the following packages: `dplyr` [@dplyr] and `tidyverse` [@tidyverse]. In the visualizations, we plotted the bar charts using `ggplot2` [@ggplot2]. The tables were conducted by `knitr` [@knitr] and the tidy function from the package of `tidytext` [@tidytext].
+
+The dataset contains 18 variables and 32,000 observations. The dataset can be directly downloaded in CSV format. We imported the dataset with the provided sample codes: First, we imported the packages with the `show_packages` function. Second, we extracted the resources with `list_package_resources`. Third, we needed to identify the data resource with the `filter` function. Lastly, load the raw dataset with both `filter` and `get_resource`. The dataset was named `raw_df`. During cleaning the dataset, we created a new data frame called `df` which was saved with the `write_csv` function. Then we used the `select` function to keep the variables that we needed, including “Outbreak Associated”, “Age Group”, “Neighbourhood Name”, “Source of Infection”, “Classification”, “Client Gender”, “Outcome”, “Ever Hospitalized”, “Ever in ICU”, “Ever Intubated”. Then we used `filter` to exclude the “ACTIVE” cases from “Outcome” because we wanted to focus on the fatal and resolved cases. Also, we used `filter` to exclude the other options in “Client Gender” except males and females. We created a new variable called “result” to distinguish these two cases with `mutate` and `as factor` functions. 1 indicated the COVID-19 cases were resolved and 0 represented fatal cases.  Moreover, we `rename` the rest variables into lower letters: “Outbreak Associated” as “outbreak associated”, “Age Group” as “age”, “neighbourhood” as “Neighbourhood Name”, “infection” as “Source of Infection”, “Classification” as “classification”, “Client Gender” as “gender”, “Outcome” as “outcome” “Ever Hospitalized” as  “ever hospitalized”, “Ever in ICU” as “ever in ICU”, and “Ever Intubated” as “ever intubated”. The variables are shown in the following.
+
+ Variables              |  Description
+ -----------------------| -------------------------------------
+ result                 | 0 is the fatal cases, 1 is the resolved cases
+ age                    | cases's age group by 10
+ gender                 | self-reported biological gender 
+ outbreak-associated    | outbreak associated with healthcare institutions and other settings
+neighbourhood           | names of the 140 neighbourhoods
+infection               | the ways of infection of the COVID-19 cases
+outcome                 | classify the cases into fatal and resolved
+classification          | classify the cases into confirmed and probable
+ever hospitalized       | The cases ever hospitalized due to COVID-19
+ever in ICU             | The cases ever in ICU due to COVID-19
+ever intubated          | The cases ever intubated due to COVID-19
+
+
+
+## Figures
+
+Figures 1-2 illustrate the age at the time of the COVID-19 infection group by 10 and gender, respectively. The age distribution follows a normal distribution and is slightly skewed. We observed the mode is in the column of the age of 20-29 years old, follows by 30-39 years old, 19 and younger. Over 6,000 individuals are between 20 and 29 years infected. As the age gets older, the number of infections falls. The distribution of gender shows the number of infections between male and female groups is most likely the same. The results indicate the cases for both females and males are over 15,000, while the number of COVID-19 cases for males is slightly higher than for females. 
+
+Figures 3-7 demonstrate the distribution of COVID-19 cases outcome grouped by outbreak-associated, gender, age, infection, and classification, respectively. The results investigate the factors that may influence the  outcome. We noticed that most of the fatal/ resolved cases are sporadic (more than 30,000) instead of the outbreak associated in figure 3. Figure 4 shows there seems no significant difference between the number of females and males in fatal and resolved cases. But we need to consider further investigation. We observed that most of the resolved cases occurred between  19- younger and 50-59 years, similar to the fatal cases. Figure 6 indicates the ways of infection in resolved and fatal cases. We found community as one of the infection sources that most significantly affects the outcome.  Figure 7 displays the distribution of COVID-19 by classification. Most of the resolved cases are confirmed when all the fatal cases are confirmed. Moreover, the distribution of the COVID-19 outcome by every hospitalized, ever in ICU, ever intubated, respectively are shown in Section \@ref(appendix).
+
+Therefore, we predicted that the outcome of the COVID-19 cases in Toronto is associated with the outbreak-associated, age, gender, infection, classification, ever hospitalized, ever in ICU, and ever intubated. With a further estimation, we intended to conduct a generalized linear model (binomial regression) that consists of all the explanatory variables mentioned above, and the response variable was the variable called “ results”. 
+
+Before we built the model, we checked whether the assumptions for the binomial regression were held. First, the response variable should be binary the result of COVID-19 is either fatal or resolved. Second, the observations are not correlated and independent of each other. Third, the sample size is not too small with 31,717 observations. Most importantly, the linearity assumption holds. 
+
+
+```{r fig1,  fig.cap = 'Distribution of COVID-19 cases by age', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+#EDA
+df %>% 
+  ggplot(aes(x=age))+
+  geom_bar(color = "brown2", fill = "brown2", alpha = 0.8)+
+  coord_flip()+
+  theme_minimal()+
+  labs(title = "COVID-19 cases by age")
+```
+
+```{r fig2,  fig.cap = 'Distribution of COVID-19 cases by gender', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+#EDA
+df %>% 
+  ggplot(aes(x=gender))+
+  geom_bar(color = "cornflowerblue", fill = "cornflowerblue", alpha = 0.8)+
+  theme_minimal()+
+  labs(title = "COVID-19 cases by gender")
+```
+
+
+
+```{r fig3,  fig.cap = 'COVID-19 outcome by outbreak associated', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+
+df %>% 
+  ggplot(aes(x=outcome, fill = `outbreak associated`))+
+  geom_bar(alpha = 0.8)+
+  theme_minimal()+
+  scale_fill_brewer(palette="Set2")+
+  labs(x = "COVID-19 outcome", fill = "outbreak associated", title = "COVID-19 cases outcome by outbreak associated" )
+```
+
+
+```{r fig4,  fig.cap = 'COVID-19 cases outcome by gender', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+
+df %>% 
+  ggplot(aes(x=outcome, fill = gender))+
+  geom_bar(alpha = 0.8)+
+  theme_minimal()+
+  labs(x = "COVID-19 outcome", fill = "gender", title = "COVID-19 cases outcome by gender group")
+```
+
+```{r fig5,  fig.cap = 'COVID-19 outcome by age', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+
+df %>% 
+  ggplot(aes(x=outcome, fill = age))+
+  geom_bar(alpha = 0.8)+
+  theme_minimal()+
+  scale_fill_brewer(palette="Set3")+
+  labs(x = "COVID-19 outcome", fill = "age", title = "COVID-19 cases outcome by age group" )
+```
+
+```{r fig6,  fig.cap = 'COVID-19 outcome by infection', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+
+df %>% 
+  ggplot(aes(x=outcome, fill = infection))+
+  geom_bar(alpha = 0.8)+
+  theme_minimal()+
+  scale_fill_brewer(palette="Spectral")+
+  labs(x = "COVID-19 outcome", fill = "infection source", title = "COVID-19 cases outcome by infection source" )
+```
+
+```{r fig7,  fig.cap = 'COVID-19 outcome by classification', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+
+df %>% 
+  ggplot(aes(x=outcome, fill = classification))+
+  geom_bar(alpha = 0.8)+
+  theme_minimal()+
+  scale_fill_brewer(palette="RdYlGn")+
+  labs(x = "COVID-19 outcome", fill = "classification", title = "COVID-19 cases outcome by classfication" )
+```
+
+
+\newpage
+
+# Model
+
+$$ \begin{aligned} 
+Y_i\sim Binomial(N_i, p_i)
+\\ log(\frac{p_i}{1-p_i}) = X_i\beta
+\end{aligned}$$
+
+
+The function follows the Binomial distribution, where $\beta_0$ is the log odds for X = 0, $\beta_1$ is the log odds ratio comparing X = 0 and X = 1. We fitted our model as shown.
+
+$$ \begin{aligned} 
+\\ log(\frac{p\_resolved}{1-p\_resolved}) = \beta_0 + \beta_1{age19 and younger}+\beta_2{age20 to 29 Years}+\beta_3{age30 to 39 Years}\\ + \beta_4{age40 to 49 Years}+\beta_5{age50 to 59 Years}+\beta_6{age60 to 69 Years} \\ + \beta_7{age70 to 79 Years}+\beta_8{age80 to 89 Years}+\beta_9{age90 and older}\\ +\beta_10{genderMALE}+\beta_11{outbreak associatedSporadic}+\beta_12{infectionCommunity}\\ +\beta_13{infectionHousehold Contact}+\beta_14{infectionNo Information}+\beta_15{infectionOutbreaks, Congregate Settings}\\ +\beta_16{infectionOutbreaks, Healthcare Institutions}+\beta_17{infectionOutbreaks, Other Settings}\\+
+\beta_18{infectionPending}+\beta_19{infectionTravel}+ \beta_20{classificationPROBABLE}\\
++\beta_21{ever hospitalizedYes}+\beta_22{ever in ICUYes}+\beta_23{ever intubatedYes}
+\end{aligned}$$
+
+The intercept $\beta_0$ represents the log odds of the COVID-19 cases being resolved. $\beta_2$ to $\beta_9$ represent the log odds of the resolved COVID-19 cases when age is getting older and keeping the other variables constant. $\beta_10$ represents the log odds being the resolved cases when the gender is changed from female to male. $\beta_11$ is the log off being the resolved cases when outbreak associated changes to sporadic. $\beta_12$, $\beta_13$, $\beta_14$, $\beta_15$, $\beta_16$, $\beta_17$, $\beta_18$,
+$\beta_19$ represents the log odds being the resolved cases when the source of infection changes from close contact to the community, household contact, no information, congregate settings, healthcare institutions, other settings, pending, travel, respectively. $\beta_20$ is the log odds of resolved cases when the case is changed from confirmed to probable. Similarly, $beta_21$, $beta_22$, $beta_23$ means log odds being the resolved cases when they are ever hospitalized, ever in ICU, ever intubated changed from no to yes.
+
+
+
+# Results
+
+$$ \begin{aligned} 
+\\ log(\frac{p\_resolved}{1-p\_resolved}) = 23.07 - 0.55{age19 and younger} -0.42{age20 to 29 Years} -15.43{age30 to 39 Years}\\ -16.16{age40 to 49 Years} -16.94{age50 to 59 Years}-17.40 {age60 to 69 Years} \\  -18.40{age70 to 79 Years}-19.47{age80 to 89 Years}-20.26{age90 and older}\\ -0.34{genderMALE}+0.22{outbreak associatedSporadic}+0.19{infectionCommunity}\\ +0.40{infectionHousehold Contact}+0.24{infectionNo Information}+1.26{infectionOutbreaks, Congregate Settings}\\ -0.30{infectionOutbreaks, Healthcare Institutions}+0.07{infectionOutbreaks, Other Settings}\\+
+18.73{infectionPending}+1.77{infectionTravel}- 1.12{classificationPROBABLE}\\
+-2.31{ever hospitalizedYes}-1.70{ever in ICUYes}-2.07{ever intubatedYes}
+\end{aligned}$$
+
+Overall, we observed that the log odds for the recovery of COVID-19 cases is 23.07. The log odds of the resolved cases are negatively correlated to the age groups, which are -0.55, -0.42, -15.43, -16.16, -16.94, -17.40, -18.40, -19.47, and -20.26, respectively. The recovery decreases and the fatality rate increases as the age gets older. When the gender switches from female to male, we found the log odds being resolved decreases. Meaning male patients may have a higher fatality. Additionally, as outbreak-associated changes to sporadic, the log odds being resolved raised by 0.22. The log odds being recovery changes from close contact to the community, household contact, no information, congregate settings, other settings, pending, travel is positive. Meaning the log odds being resolved increases. However, we also noticed that the log odds being recovery drops when close contact with healthcare institutions. Last but not least, the log odds being recovery declined as classification changes to probable, ever hospitalized, ever in ICU, ever intubated changed from no to yes, respectively. The reason is obvious: the patients who ever hospitalized, ever stayed in ICU, or ever intubated, his case is more serious than others, which leads to a higher fatality. 
+
+
+
+```{r, warning = FALSE, message = FALSE, echo=FALSE}
+
+mod = glm(result ~ age + gender + `outbreak associated` + infection + classification + `ever hospitalized` + `ever in ICU` + `ever intubated` , family = binomial, data = df) 
+options(digits=2)
+knitr::kable(tidy(mod), caption = "Summary table of cofficients of COVID-19 cases's result model")
+
+```
+
+
+# Discussion
+
+## Findings
+
+To answer our research question what are the factors that may affect the recovery of COVID-19 cases, we visualized the fatal and resolved cases grouped by various explanatory variables. Besides, we conducted the binomial regression model which is the part of  generalized regression model, and came up with the following conclusion. Older people are less likely to be resolved from COVID-19. Males patients are less resolved compared to females. Sporadic cases tends to be resolved. In addition, the sources of infection are positively related to the resolved cases excepts for healthcare institutions. Probable cases are more likely to be resolved. The cases of ever hospitalized/ever in ICU/ever intubated are less likely to be resolved.
+
+
+## Limitations and Weaknesses
+
+### Only including Females and Male in Gender
+
+The original dataset included several gender options based on the self-reported from patients: female, male, non-binary, transgender, and unknown. However, our analysis only considered the cases of both females and males. For the reason that females and males are associated with the most cases. However, non-binary, transgender, and unknown patients cases excluded from the model may cause bias in our results. 
+
+
+### The P-values of the Age Groups 
+
+In the summary table of coefficients of the model of the COVID-19 case, we saw the p-values of different age groups are approximately 1. The p-values close to 1 represent no difference between the age groups other than due to chance. Nevertheless, some people argued that the p-value maybe not be that important because it does not provide a good measure in a model. We still recommend we need a further investigation to explain why the p-values are small or exclude the variable of age in our model.
+
+
+### Dataset Consisted of Different Sources 
+
+As TPH mentioned, they extracted the data from different time periods and different sources [@dataset]. Thus, our analysis conclusions may be entirely different from other research papers. For instance, we estimated that males cases are less likely to be resolved compared to females. But other research proved that the COVID-19 cases fatality is higher in females than males [@gender].
+
+
+
+### Model Fitting 
+
+Applying more complicated models may crush the R studio due to the large dataset and also many variables were included in our model. So we fitted the binomial regression model without the interaction terms. Consequently, we cannot consider all the possible situations.
+
+
+\newpage
+
+\appendix
+
+# Appendix {-}
+
+```{r fig8,  fig.cap = 'COVID-19 outcome by ever hospitalized', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+
+df %>% 
+  ggplot(aes(x=outcome, fill = `ever hospitalized`))+
+  geom_bar(alpha = 0.8)+
+  theme_minimal()+
+  labs(x = "COVID-19 outcome", fill = "ever hospitalized", title = "COVID-19 cases outcome by ever hospitalized" )
+```
+
+```{r fig9,  fig.cap = 'COVID-19 outcome by ever in ICU', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+
+df %>% 
+  ggplot(aes(x=outcome, fill = `ever in ICU`))+
+  geom_bar(alpha = 0.8)+
+  scale_fill_brewer(palette="Accent")+
+  theme_minimal()+
+  labs(x = "COVID-19 outcome", fill = "ever in ICU", title = "COVID-19 cases outcome by ever in ICU" )
+```
+
+
+```{r fig10,  fig.cap = 'COVID-19 outcome by ever intubated', fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+
+df %>% 
+  ggplot(aes(x=outcome, fill = `ever intubated`))+
+  geom_bar(alpha = 0.8)+
+  theme_minimal()+
+   scale_fill_brewer(palette="Set3")+
+  labs(x = "COVID-19 outcome", fill = "ever intubated", title = "COVID-19 cases outcome by ever intubated" )
+```
+
+
+
+
+
+\newpage
+
+
+# References
+
+
+
